@@ -37,14 +37,5 @@ public class PacketDeflater extends MessageToByteEncoder<ByteBuf> {
             this.deflater.reset();
         }
     }
-
-    public int getCompressionThreshold() {
-        return this.compressionThreshold;
-    }
-
-    public void setCompressionThreshold(int compressionThreshold) {
-        this.compressionThreshold = compressionThreshold;
-    }
-
 }
 

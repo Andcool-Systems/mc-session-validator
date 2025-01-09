@@ -1,9 +1,11 @@
 package com.andcool.Mojang;
 
-import com.andcool.Main;
-import com.andcool.SESSION;
+import com.andcool.API.HTTPException;
+import com.andcool.SillyLogger.Level;
+import com.andcool.SillyLogger.SillyLogger;
 import org.json.JSONObject;
 
+import javax.crypto.SecretKey;
 import java.math.BigInteger;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -14,22 +16,29 @@ import java.security.PublicKey;
 
 
 public class Join {
-    public static void join(String server_id, PublicKey publicKey) throws Exception {
+    public static final SillyLogger logger = new SillyLogger("", true, Level.DEBUG);
+
+    public static void join(String server_id,
+                            PublicKey publicKey,
+                            String uuid,
+                            SecretKey sharedSecret,
+                            String accessToken) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         digest.update(server_id.getBytes());
-        assert Main.sharedSecret != null;
-        digest.update(Main.sharedSecret.getEncoded());
+        assert sharedSecret != null;
+        digest.update(sharedSecret.getEncoded());
         digest.update(publicKey.getEncoded());
         String hash = new BigInteger(digest.digest()).toString(16);
 
-        System.out.println("Client hash: " + hash);
+        logger.log(Level.DEBUG, "Client hash: " + hash);
 
         JSONObject body = new JSONObject();
 
-        body.put("accessToken", SESSION.accessToken);
-        body.put("selectedProfile", Main.UUID.replaceAll("-", ""));
+        body.put("accessToken", accessToken);
+        body.put("selectedProfile", uuid.replaceAll("-", ""));
         body.put("serverId", hash);
 
+        logger.log(Level.DEBUG, "Trying to authenticate with Mojang API: " + hash);
         String BASE_URL = "https://sessionserver.mojang.com/session/minecraft/join";
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
@@ -39,6 +48,9 @@ public class Join {
                 .build();
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        System.out.println("Mojang API responded with code: " + response.statusCode());
+
+        if (response.statusCode() >= 400)
+            throw new HTTPException("Mojang API error", response.statusCode());
+        logger.log(Level.DEBUG, "Mojang API responded with code: " + response.statusCode());
     }
 }

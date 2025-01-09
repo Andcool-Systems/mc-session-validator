@@ -1,6 +1,8 @@
 package com.andcool.Compression;
 
 import com.andcool.Bytebuf.ByteBufUtils;
+import com.andcool.Main;
+import com.andcool.SillyLogger.Level;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandlerContext;
@@ -28,7 +30,8 @@ public class PacketInflater extends ByteToMessageDecoder {
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf buf, List<Object> objects) throws Exception {
-        // Проверяем, есть ли данные
+        Main.logger.log(Level.DEBUG, "Inflater got a packet!");
+
         if (buf.readableBytes() == 0) {
             return;
         }

@@ -1,44 +1,20 @@
 package com.andcool;
 
-import com.andcool.Encryption.Keys;
-import com.andcool.session.SessionHandler;
-import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.*;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
+import com.andcool.API.APIHandler;
+import com.andcool.SillyLogger.Level;
+import com.andcool.SillyLogger.SillyLogger;
+import com.sun.net.httpserver.HttpServer;
 
-import javax.crypto.SecretKey;
+import java.io.IOException;
+import java.net.InetSocketAddress;
 
 public class Main {
+    public static final SillyLogger logger = new SillyLogger("Main Thread", true, Level.DEBUG);
 
-    // Конфигурация
-    public static final String SERVER_ADDRESS = "play.pepeland.net";
-    public static final int SERVER_PORT = 25565;
-    public static final String PLAYER_NAME = "Vanessa_52";
-    public static final String UUID = "33256ed7-e564-417f-9da3-cacada70a590";
-    public static final int PROTOCOL_VERSION = 768;
-    public static final SecretKey sharedSecret = Keys.generateRandomSecret();
-
-    public static void main(String[] args) throws InterruptedException {
-        EventLoopGroup group = new NioEventLoopGroup();
-        try {
-            Bootstrap bootstrap = new Bootstrap();
-            bootstrap.group(group)
-                    .channel(NioSocketChannel.class)
-                    .handler(new ChannelInitializer<SocketChannel>() {
-                        @Override
-                        protected void initChannel(SocketChannel ch) {
-                            ChannelPipeline pipeline = ch.pipeline();
-                            pipeline.addLast(new SessionHandler());
-                        }
-                    });
-
-            // Подключаемся к серверу
-            Channel channel = bootstrap.connect(SERVER_ADDRESS, SERVER_PORT).sync().channel();
-            channel.closeFuture().sync();
-        } finally {
-            group.shutdownGracefully();
-        }
+    public static void main(String[] args) throws IOException {
+        logger.log(Level.INFO, "Starting API");
+        HttpServer server = HttpServer.create(new InetSocketAddress(8008), 0);
+        server.createContext("/connect", new APIHandler());
+        server.start();
     }
 }
