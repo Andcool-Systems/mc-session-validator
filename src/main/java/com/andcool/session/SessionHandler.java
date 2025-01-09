@@ -85,9 +85,6 @@ public class SessionHandler extends SimpleChannelInboundHandler<ByteBuf> {
             ByteBufUtils.writeUUID(outLogin, UUID.fromString(PLAYER_UUID));
 
             ctx.writeAndFlush(ByteBufUtils.addSize(ctx, outLogin));
-        } catch (Exception e) {
-            logger.log(Level.ERROR, e, true);
-            throw e;
         } finally {
             out.release();
             outLogin.release();
@@ -110,7 +107,7 @@ public class SessionHandler extends SimpleChannelInboundHandler<ByteBuf> {
                 }
                 String rawJSON = ByteBufUtils.readUTF8(in);
 
-                logger.log(Level.ERROR, "Disconnected from server with message: " + rawJSON);
+                logger.log(Level.WARN, "Disconnected from server with message: " + rawJSON);
                 JSONObject json = null;
 
                 try {
@@ -185,9 +182,6 @@ public class SessionHandler extends SimpleChannelInboundHandler<ByteBuf> {
             } else {
                 logger.log(Level.WARN, "Invalid packet ID: " + packetId);
             }
-        } catch (Exception e) {
-            logger.log(Level.ERROR, e, true);
-            throw e;
         } finally {
             if (responseBuffer != null) {
                 responseBuffer.release();

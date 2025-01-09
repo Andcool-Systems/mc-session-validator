@@ -63,24 +63,22 @@ public class APIHandler implements HttpHandler {
             Main.logger.log(Level.INFO, "Successfully resolved request for " + nickname);
             send(exchange, response.toString(), 200);
         } catch (Exception e) {
-            Main.logger.log(Level.ERROR, e, true);
-
+            Exception mustLogged = e;
             if (e instanceof HTTPException cause) {
                 send(exchange, cause.getMessage(), cause.statusCode);
-                return;
-            }
-
-            if (e instanceof ExecutionException cause) {
+            } else if (e instanceof ExecutionException cause) {
                 Throwable connectionException = cause.getCause();
                 if (connectionException instanceof HTTPException httpException) {
+                    mustLogged = httpException;
                     send(exchange, httpException.getMessage(), httpException.statusCode);
                 } else {
                     send(exchange, "{\"message\": \"Internal server exception\"}", 500);
                 }
-                return;
+            } else {
+                send(exchange, "{\"message\": \"Internal server exception\"}", 500);
             }
 
-            send(exchange, "{\"message\": \"Internal server exception\"}", 500);
+            Main.logger.log(Level.ERROR, mustLogged, true);
         }
     }
 
