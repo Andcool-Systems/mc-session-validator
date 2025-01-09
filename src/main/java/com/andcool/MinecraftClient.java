@@ -85,7 +85,7 @@ public class MinecraftClient implements Callable<JSONObject> {
             }
             throw e;
         } finally {
-            logger.log(Level.INFO, "Shutdowning minecraft client gracefully...");
+            logger.log(Level.INFO, "Shutting down minecraft client gracefully...");
             group.shutdownGracefully();
         }
     }

@@ -75,12 +75,12 @@ public class APIHandler implements HttpHandler {
                 if (connectionException instanceof HTTPException httpException) {
                     send(exchange, httpException.getMessage(), httpException.statusCode);
                 } else {
-                    send(exchange, connectionException.getMessage(), 500);
+                    send(exchange, "{\"message\": \"Internal server exception\"}", 500);
                 }
                 return;
             }
 
-            send(exchange, "Internal server exception", 500);
+            send(exchange, "{\"message\": \"Internal server exception\"}", 500);
         }
     }
 

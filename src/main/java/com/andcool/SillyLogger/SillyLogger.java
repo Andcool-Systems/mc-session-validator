@@ -2,6 +2,8 @@ package com.andcool.SillyLogger;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 import static java.lang.String.format;
@@ -36,7 +38,7 @@ public class SillyLogger {
             default -> color = "";
         }
         String nameThread = name.isEmpty() ? Thread.currentThread().getName() : name;
-        System.out.println((colors ? color : "") + format("[%s][%s] %s", nameThread, level.name(), message) + (colors ? RESET : ""));
+        System.out.println((colors ? color : "") + format("[%s] [%s][%s] %s", getCurrentDate(), nameThread, level.name(), message) + (colors ? RESET : ""));
     }
 
     public void log(Level level, Throwable throwable, boolean trace) {
@@ -59,7 +61,7 @@ public class SillyLogger {
 
         String stackTrace = getStackTraceAsString(throwable);
         String nameThread = name.isEmpty() ? Thread.currentThread().getName() : name;
-        System.out.println((colors ? color : "") + format("[%s][%s] %s", nameThread, level.name(), stackTrace) + (colors ? RESET : ""));
+        System.out.println((colors ? color : "") + format("[%s] [%s][%s] %s", getCurrentDate(), nameThread, level.name(), stackTrace) + (colors ? RESET : ""));
     }
 
     private String getStackTraceAsString(Throwable throwable) {
@@ -68,4 +70,11 @@ public class SillyLogger {
         throwable.printStackTrace(pw);
         return sw.toString();
     }
+
+    private String getCurrentDate() {
+        LocalDateTime currentDateTime = LocalDateTime.now();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
+        return currentDateTime.format(formatter);
+    }
+
 }

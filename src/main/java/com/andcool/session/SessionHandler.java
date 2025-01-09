@@ -23,6 +23,7 @@ import com.andcool.SillyLogger.SillyLogger;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import javax.crypto.Cipher;
@@ -69,111 +70,140 @@ public class SessionHandler extends SimpleChannelInboundHandler<ByteBuf> {
         }, 15, TimeUnit.SECONDS);
 
         ByteBuf out = ctx.alloc().buffer();
-        ByteBufUtils.writeVarInt(out, 0x00); // Packet ID
-        ByteBufUtils.writeVarInt(out, PROTOCOL_VERSION);
-        ByteBufUtils.writeUTF8(out, SERVER_ADDRESS);
-        out.writeShort(SERVER_PORT);
-        ByteBufUtils.writeVarInt(out, 2);
-
-        ctx.write(ByteBufUtils.addSize(ctx, out));
-
         ByteBuf outLogin = ctx.alloc().buffer();
-        ByteBufUtils.writeVarInt(outLogin, 0x00); // Packet ID
-        ByteBufUtils.writeUTF8(outLogin, PLAYER_NAME);
-        ByteBufUtils.writeUUID(outLogin, UUID.fromString(PLAYER_UUID));
-
-        ctx.write(ByteBufUtils.addSize(ctx, outLogin));
-        ctx.flush();
-    }
-
-    @Override
-    protected void channelRead0(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
-        int packetLength = ByteBufUtils.readVarInt(in);
-        int packetId = ByteBufUtils.readVarInt(in);
-
-        logger.log(Level.DEBUG, "Packet received! Packet id: " + packetId + " Packet length: " + packetLength);
-
-        if (packetId == 0x00) {
-            if (ctx.pipeline().get("decompress") instanceof PacketInflater) {
-                ByteBufUtils.readVarInt(in);
-            }
-            String json = ByteBufUtils.readUTF8(in);
-
-            JSONObject errorResponse = new JSONObject();
-            errorResponse.put("message", new JSONObject(json));
-
-            logger.log(Level.ERROR, "Disconnected from server with message: " + json);
-
-            throw new HTTPException(errorResponse, 403);
-
-        } else if (packetId == 0x01) {
-            logger.log(Level.DEBUG, "Received encryption request");
-
-            String serverId = ByteBufUtils.readUTF8(in);
-
-            int publicKeyLength = ByteBufUtils.readVarInt(in);
-            byte[] publicKeyBytes = new byte[publicKeyLength];
-            in.readBytes(publicKeyBytes);
-
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
-            PublicKey publicKey = keyFactory.generatePublic(publicKeySpec);
-
-            int verifyTokenLength = ByteBufUtils.readVarInt(in);
-            byte[] verifyToken = new byte[verifyTokenLength];
-            in.readBytes(verifyToken);
-
-            in.readBoolean();
-
-            Join.join(serverId, publicKey, PLAYER_UUID, sharedSecret, accessToken);
-
-            logger.log(Level.DEBUG, "Sending encryption response packet (id: 0x01)");
-
-            Cipher rsaCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-            rsaCipher.init(Cipher.ENCRYPT_MODE, publicKey);
-
-            byte[] encryptedSharedSecret = rsaCipher.doFinal(sharedSecret.getEncoded());
-            byte[] encryptedVerifyToken = rsaCipher.doFinal(verifyToken);
-
-            ByteBuf out = ctx.alloc().buffer();
-            ByteBufUtils.writeVarInt(out, 0x01); // Packet ID
-            ByteBufUtils.writeVarInt(out, encryptedSharedSecret.length);
-            out.writeBytes(encryptedSharedSecret);
-            ByteBufUtils.writeVarInt(out, encryptedVerifyToken.length);
-            out.writeBytes(encryptedVerifyToken);
+        try {
+            ByteBufUtils.writeVarInt(out, 0x00);
+            ByteBufUtils.writeVarInt(out, PROTOCOL_VERSION);
+            ByteBufUtils.writeUTF8(out, SERVER_ADDRESS);
+            out.writeShort(SERVER_PORT);
+            ByteBufUtils.writeVarInt(out, 2);
 
             ctx.write(ByteBufUtils.addSize(ctx, out));
 
-            ctx.pipeline().addFirst("decoder", new Encryption(sharedSecret));
-            ctx.flush();
-        } else if (packetId == 2) {
-            UUID uuid = ByteBufUtils.readUUID(in);
-            String nick = ByteBufUtils.readUTF8(in);
+            ByteBufUtils.writeVarInt(outLogin, 0x00); // Packet ID
+            ByteBufUtils.writeUTF8(outLogin, PLAYER_NAME);
+            ByteBufUtils.writeUUID(outLogin, UUID.fromString(PLAYER_UUID));
 
-            int userdataLength = ByteBufUtils.readVarInt(in);
-            byte[] userDataBytes = new byte[userdataLength];
-            in.readBytes(userDataBytes);
-
-            JSONObject response = new JSONObject();
-            response.put("nickname", nick);
-            response.put("UUID", uuid);
-
-            future.complete(response);
-            ctx.close();
-        } else if (packetId == 3) {
-            int compressionThreshold = ByteBufUtils.readVarInt(in);
-            logger.log(Level.INFO, "Server requested compression with threshold: " + compressionThreshold);
-            enableCompression(ctx, compressionThreshold);
-        } else {
-            logger.log(Level.WARN, "Invalid packet ID: " + packetId);
+            ctx.writeAndFlush(ByteBufUtils.addSize(ctx, outLogin));
+        } catch (Exception e) {
+            logger.log(Level.ERROR, e, true);
+            throw e;
+        } finally {
+            out.release();
+            outLogin.release();
         }
     }
+
+
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
+        ByteBuf responseBuffer = null;
+        try {
+            int packetLength = ByteBufUtils.readVarInt(in);
+            int packetId = ByteBufUtils.readVarInt(in);
+
+            logger.log(Level.DEBUG, "Packet received! Packet id: " + packetId + " Packet length: " + packetLength);
+
+            if (packetId == 0x00) {
+                if (ctx.pipeline().get("decompress") instanceof PacketInflater) {
+                    ByteBufUtils.readVarInt(in);
+                }
+                String rawJSON = ByteBufUtils.readUTF8(in);
+
+                logger.log(Level.ERROR, "Disconnected from server with message: " + rawJSON);
+                JSONObject json = null;
+
+                try {
+                    json = new JSONObject(rawJSON);
+                } catch (JSONException e) {
+                    logger.log(Level.WARN, e.getMessage());
+                }
+
+                JSONObject errorResponse = new JSONObject();
+                errorResponse.put("cause", ServerCause.getCause(rawJSON));
+                errorResponse.put("raw", json != null ? json : rawJSON.replaceAll("^\"|\"$", ""));
+
+                throw new HTTPException(errorResponse, 403);
+
+            } else if (packetId == 0x01) {
+                logger.log(Level.DEBUG, "Received encryption request");
+
+                String serverId = ByteBufUtils.readUTF8(in);
+
+                int publicKeyLength = ByteBufUtils.readVarInt(in);
+                byte[] publicKeyBytes = new byte[publicKeyLength];
+                in.readBytes(publicKeyBytes);
+
+                KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+                X509EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
+                PublicKey publicKey = keyFactory.generatePublic(publicKeySpec);
+
+                int verifyTokenLength = ByteBufUtils.readVarInt(in);
+                byte[] verifyToken = new byte[verifyTokenLength];
+                in.readBytes(verifyToken);
+
+                in.readBoolean();
+
+                Join.join(serverId, publicKey, PLAYER_UUID, sharedSecret, accessToken);
+
+                logger.log(Level.DEBUG, "Sending encryption response packet (id: 0x01)");
+
+                Cipher rsaCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+                rsaCipher.init(Cipher.ENCRYPT_MODE, publicKey);
+
+                byte[] encryptedSharedSecret = rsaCipher.doFinal(sharedSecret.getEncoded());
+                byte[] encryptedVerifyToken = rsaCipher.doFinal(verifyToken);
+
+                responseBuffer = ctx.alloc().buffer();
+                ByteBufUtils.writeVarInt(responseBuffer, 0x01); // Packet ID
+                ByteBufUtils.writeVarInt(responseBuffer, encryptedSharedSecret.length);
+                responseBuffer.writeBytes(encryptedSharedSecret);
+                ByteBufUtils.writeVarInt(responseBuffer, encryptedVerifyToken.length);
+                responseBuffer.writeBytes(encryptedVerifyToken);
+
+                ctx.writeAndFlush(ByteBufUtils.addSize(ctx, responseBuffer));
+
+                ctx.pipeline().addFirst("decoder", new Encryption(sharedSecret));
+            } else if (packetId == 2) {
+                UUID uuid = ByteBufUtils.readUUID(in);
+                String nick = ByteBufUtils.readUTF8(in);
+
+                int userdataLength = ByteBufUtils.readVarInt(in);
+                byte[] userDataBytes = new byte[userdataLength];
+                in.readBytes(userDataBytes);
+
+                JSONObject response = new JSONObject();
+                response.put("nickname", nick);
+                response.put("UUID", uuid);
+
+                future.complete(response);
+                ctx.close();
+            } else if (packetId == 3) {
+                int compressionThreshold = ByteBufUtils.readVarInt(in);
+                logger.log(Level.INFO, "Server requested compression with threshold: " + compressionThreshold);
+                enableCompression(ctx, compressionThreshold);
+            } else {
+                logger.log(Level.WARN, "Invalid packet ID: " + packetId);
+            }
+        } catch (Exception e) {
+            logger.log(Level.ERROR, e, true);
+            throw e;
+        } finally {
+            if (responseBuffer != null) {
+                responseBuffer.release();
+            }
+        }
+    }
+
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) {
         logger.log(Level.INFO, "Session closed!");
         ctx.fireChannelInactive();
         scheduler.shutdown();
+        if (!future.isDone()) {
+            future.completeExceptionally(new HTTPException("Gateway timeout", 504));
+        }
     }
 
     @Override
