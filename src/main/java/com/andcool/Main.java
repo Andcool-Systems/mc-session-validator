@@ -14,7 +14,6 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
         logger.log(Level.INFO, "Starting API");
-        ResourceLeakDetector.setLevel(ResourceLeakDetector.Level.ADVANCED);
 
         HttpServer server = HttpServer.create(new InetSocketAddress(8008), 0);
         server.createContext("/connect", new APIHandler());
