@@ -196,7 +196,7 @@ public class SessionHandler extends SimpleChannelInboundHandler<ByteBuf> {
         ctx.fireChannelInactive();
         scheduler.shutdown();
         if (!future.isDone()) {
-            future.completeExceptionally(new HTTPException("Gateway timeout", 504));
+            future.completeExceptionally(new HTTPException("Server unexpectedly closed the connection", 500));
         }
     }
 

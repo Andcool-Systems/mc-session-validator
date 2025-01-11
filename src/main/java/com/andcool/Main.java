@@ -10,7 +10,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 
 public class Main {
-    public static final SillyLogger logger = new SillyLogger("Main Thread", true, Level.DEBUG);
+    public static final SillyLogger logger = new SillyLogger("", true, Level.DEBUG);
 
     public static void main(String[] args) throws IOException {
         logger.log(Level.INFO, "Starting API");
